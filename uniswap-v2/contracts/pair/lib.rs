@@ -19,6 +19,11 @@ pub mod pair {
         prelude::vec::Vec,
     };
 
+    use uniswap_v2::{
+        impls::pair::*,
+        traits::pair::*,
+    };
+
     #[ink(event)]
     pub struct Transfer {
         #[ink(topic)]
@@ -42,7 +47,11 @@ pub mod pair {
     pub struct PairContract {
         #[storage_field]
         psp22: psp22::Data,
+        #[storage_field]
+        pair: data::Data,
     }
+
+    impl Pair for PairContract {}
 
     impl PSP22 for PairContract {
         #[ink(message)]
@@ -71,9 +80,8 @@ pub mod pair {
     impl PairContract {
         #[ink(constructor)]
         pub fn new() -> Self {
-            Self {
-                psp22: Default::default(),
-            }
+            let instance = Self::default();
+            instance
         }
     }
 
@@ -109,12 +117,12 @@ pub mod pair {
         }
 
         fn _burn_from(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
-            let mut from_balance = self._balance_of(account);
+            let mut from_balance = self._balance_of(&account);
             if from_balance < amount {
                 return Err(PSP22Error::InsufficientBalance)
             }
             from_balance -= amount;
-            self.psp22.balances.insert(account, from_balance);
+            self.psp22.balances.insert(&account, &from_balance);
             self.psp22.supply -= amount;
             self._emit_transfer_event(Some(account), None, amount);
             Ok(())
@@ -126,7 +134,7 @@ pub mod pair {
             spender: AccountId,
             amount: Balance,
         ) -> Result<(), PSP22Error> {
-            self.psp22.allowances.insert((owner, spender), amount);
+            self.psp22.allowances.insert(&(&owner, &spender), &amount);
             self._emit_approval_event(owner, spender, amount);
             Ok(())
         }
@@ -138,7 +146,7 @@ pub mod pair {
             amount: Balance,
             _data: Vec<u8>,
         ) -> Result<(), PSP22Error> {
-            let from_balance = self._balance_of(from);
+            let from_balance = self._balance_of(&from);
 
             if from_balance < amount {
                 return Err(PSP22Error::InsufficientBalance)
@@ -146,12 +154,12 @@ pub mod pair {
 
             let new_balance_from = from_balance - amount;
 
-            self.psp22.balances.insert(from, from_balance);
-            let to_balance = self._balance_of(to);
+            self.psp22.balances.insert(&from, &from_balance);
+            let to_balance = self._balance_of(&to);
 
             let new_balance_to = to_balance + amount;
 
-            self.psp22.balances.insert(to, new_balance_to);
+            self.psp22.balances.insert(&to, &new_balance_to);
 
             self._emit_transfer_event(Some(from), Some(to), amount);
 
