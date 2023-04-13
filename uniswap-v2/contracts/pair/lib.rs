@@ -42,6 +42,14 @@ pub mod pair {
         value: Balance,
     }
 
+    #[ink(event)]
+    pub struct Mint {
+        #[ink(topic)]
+        pub sender: AccountId,
+        pub amount_0: Balance,
+        pub amount_1: Balance,
+    }
+
     #[ink(storage)]
     #[derive(Default, Storage)]
     pub struct PairContract {
@@ -51,7 +59,15 @@ pub mod pair {
         pair: data::Data,
     }
 
-    impl Pair for PairContract {}
+    impl Pair for PairContract {
+        fn _emit_mint_event(&self, sender: AccountId, amount_0: Balance, amount_1: Balance) {
+            self.env().emit_event(Mint {
+                sender,
+                amount_0,
+                amount_1,
+            })
+        }
+    }
 
     impl PSP22 for PairContract {
         #[ink(message)]
