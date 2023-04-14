@@ -4,9 +4,13 @@
 #[openbrush::contract]
 pub mod pair {
     use openbrush::{
-        contracts::psp22::{
-            Internal,
-            *,
+        contracts::{
+            ownable::*,
+            psp22::{
+                Internal,
+                *,
+            },
+            reentrancy_guard,
         },
         traits::{
             Balance,
@@ -24,7 +28,10 @@ pub mod pair {
     };
 
     use uniswap_v2::{
-        impls::pair::*,
+        impls::pair::{
+            data,
+            *,
+        },
         traits::pair::*,
     };
 
@@ -64,6 +71,18 @@ pub mod pair {
         pub to: AccountId,
     }
 
+    #[ink(event)]
+    pub struct Swap {
+        #[ink(topic)]
+        pub sender: AccountId,
+        pub amount_0_in: Balance,
+        pub amount_1_in: Balance,
+        pub amount_0_out: Balance,
+        pub amount_1_out: Balance,
+        #[ink(topic)]
+        pub to: AccountId,
+    }
+
     #[ink(storage)]
     #[derive(Default, Storage)]
     pub struct PairContract {
@@ -71,6 +90,12 @@ pub mod pair {
         psp22: psp22::Data,
         #[storage_field]
         pair: data::Data,
+
+        #[storage_field]
+        guard: reentrancy_guard::Data,
+
+        #[storage_field]
+        ownable: ownable::Data,
     }
 
     impl Pair for PairContract {
@@ -93,6 +118,25 @@ pub mod pair {
                 sender,
                 amount_0,
                 amount_1,
+                to,
+            })
+        }
+
+        fn _emit_swap_event(
+            &self,
+            sender: AccountId,
+            amount_0_in: Balance,
+            amount_1_in: Balance,
+            amount_0_out: Balance,
+            amount_1_out: Balance,
+            to: AccountId,
+        ) {
+            self.env().emit_event(Swap {
+                sender,
+                amount_0_in,
+                amount_1_in,
+                amount_0_out,
+                amount_1_out,
                 to,
             })
         }
@@ -122,10 +166,15 @@ pub mod pair {
         }
     }
 
+    impl Ownable for PairContract {}
+
     impl PairContract {
         #[ink(constructor)]
         pub fn new() -> Self {
-            let instance = Self::default();
+            let mut instance = Self::default();
+            let caller = instance.env().caller();
+            instance._init_with_owner(caller);
+            instance.pair.factory = caller;
             instance
         }
     }

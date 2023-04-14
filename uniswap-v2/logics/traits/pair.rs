@@ -1,9 +1,18 @@
-use openbrush::contracts::psp22::PSP22Error;
+use openbrush::contracts::{
+    reentrancy_guard::*,
+    traits::{
+        ownable::*,
+        psp22::PSP22Error,
+    },
+};
 
-use openbrush::traits::{
-    AccountId,
-    Balance,
-    Timestamp,
+use openbrush::{
+    contracts::reentrancy_guard::ReentrancyGuardError,
+    traits::{
+        AccountId,
+        Balance,
+        Timestamp,
+    },
 };
 
 #[openbrush::wrapper]
@@ -59,18 +68,50 @@ pub trait Pair {
         _amount_1: Balance,
         _to: AccountId,
     );
+
+    #[ink(message)]
+    fn swap(
+        &mut self,
+        amount_0_out: Balance,
+        amount_1_out: Balance,
+        to: AccountId,
+    ) -> Result<(), PairError>;
+
+    fn _emit_swap_event(
+        &self,
+        _sender: AccountId,
+        _amount_0_in: Balance,
+        _amount_1_in: Balance,
+        _amount_0_out: Balance,
+        _amount_1_out: Balance,
+        _to: AccountId,
+    );
 }
 
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale:: Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum PairError {
     PSP22Error(PSP22Error),
+    OwnableError(OwnableError),
+    ReentrancyGuardError(ReentrancyGuardError),
+
     InsufficientLiquidityMinted,
     InsufficientLiquidityBurned,
+    InsufficientLiquidity,
+    InsufficientInputAmount,
+    InsufficientOutputAmount,
     Overflow,
     SubUnderFlow1,
     SubUnderFlow2,
     SubUnderFlow3,
+    SubUnderFlow4,
+    SubUnderFlow5,
+    SubUnderFlow6,
+    SubUnderFlow7,
+    SubUnderFlow8,
+    SubUnderFlow9,
+    SubUnderFlow10,
+    SubUnderFlow11,
     SubUnderFlow14,
 
     MulOverFlow1,
@@ -80,8 +121,15 @@ pub enum PairError {
     MulOverFlow5,
     MulOverFlow6,
     MulOverFlow7,
+    MulOverFlow8,
+    MulOverFlow9,
+    MulOverFlow10,
+    MulOverFlow11,
     MulOverFlow14,
     MulOverFlow15,
+    MulOverFlow16,
+    MulOverFlow17,
+    MulOverFlow18,
 
     DivByZero1,
     DivByZero2,
@@ -90,10 +138,26 @@ pub enum PairError {
     DivByZero5,
 
     AddOverflow1,
+
+    InvalidTo,
+
+    K,
 }
 
 impl From<PSP22Error> for PairError {
     fn from(value: PSP22Error) -> Self {
         PairError::PSP22Error(value)
+    }
+}
+
+impl From<ReentrancyGuardError> for PairError {
+    fn from(value: ReentrancyGuardError) -> Self {
+        PairError::ReentrancyGuardError(value)
+    }
+}
+
+impl From<OwnableError> for PairError {
+    fn from(value: OwnableError) -> Self {
+        PairError::OwnableError(value)
     }
 }

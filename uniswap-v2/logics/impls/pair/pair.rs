@@ -4,9 +4,12 @@ pub use crate::{
 };
 use openbrush::{
     contracts::{
+        ownable::*,
         psp22::*,
+        reentrancy_guard::*,
         traits::psp22::PSP22Ref,
     },
+    modifiers,
     traits::{
         AccountId,
         Balance,
@@ -19,7 +22,16 @@ use openbrush::{
 use crate::traits::factory::FactoryRef;
 use ink::prelude::vec::Vec;
 
-impl<T: Storage<data::Data> + Storage<psp22::Data>> Pair for T {
+impl<
+        T: Storage<data::Data>
+            + Storage<psp22::Data>
+            + Storage<reentrancy_guard::Data>
+            + Storage<ownable::Data>,
+    > Pair for T
+{
+    #[modifiers(only_owner)]
+    fn initialize(&mut self, token_0: AccountId, token_1: AccountId) -> Result<(), PairError> {}
+
     fn get_reserves(&self) -> (Balance, Balance, Timestamp) {
         (
             self.data::<data::Data>().reserve_0,
@@ -117,6 +129,7 @@ impl<T: Storage<data::Data> + Storage<psp22::Data>> Pair for T {
         Ok(())
     }
 
+    #[modifiers(non_reentrant)]
     fn mint(&mut self, to: AccountId) -> Result<Balance, PairError> {
         let reserves = self.get_reserves();
         let contract = Self::env().account_id();
@@ -187,6 +200,7 @@ impl<T: Storage<data::Data> + Storage<psp22::Data>> Pair for T {
         Ok(())
     }
 
+    #[modifiers(non_reentrant)]
     fn burn(&mut self, to: AccountId) -> Result<(Balance, Balance), PairError> {
         let reserves = self.get_reserves();
         let contract = Self::env().account_id();
@@ -244,6 +258,121 @@ impl<T: Storage<data::Data> + Storage<psp22::Data>> Pair for T {
         _amount_1: Balance,
         _to: AccountId,
     ) {
+    }
+
+    #[modifiers(non_reentrant)]
+    fn swap(
+        &mut self,
+        amount_0_out: Balance,
+        amount_1_out: Balance,
+        to: AccountId,
+    ) -> Result<(), PairError> {
+        if amount_0_out == 0 && amount_1_out == 0 {
+            return Err(PairError::InsufficientOutputAmount)
+        }
+        let reserves = self.get_reserves();
+        if amount_0_out >= reserves.0 || amount_1_out >= reserves.1 {
+            return Err(PairError::InsufficientLiquidity)
+        }
+
+        let token_0 = self.data::<data::Data>().token_0;
+        let token_1 = self.data::<data::Data>().token_1;
+
+        if to == token_0 || to == token_1 {
+            return Err(PairError::InvalidTo)
+        }
+        if amount_0_out > 0 {
+            self._safe_transfer(token_0, to, amount_0_out);
+        }
+        if amount_1_out > 0 {
+            self._safe_transfer(token_1, to, amount_1_out);
+        }
+
+        let contract = Self::env().account_id();
+        let balance_0 = PSP22Ref::balance_of(&token_0, contract);
+        let balance_1 = PSP22Ref::balance_of(&token_1, contract);
+
+        let amount_0_in = if balance_0
+            > reserves
+                .0
+                .checked_sub(amount_0_out)
+                .ok_or(PairError::SubUnderFlow4)?
+        {
+            balance_0
+                .checked_sub(
+                    reserves
+                        .0
+                        .checked_sub(amount_0_out)
+                        .ok_or(PairError::SubUnderFlow5)?,
+                )
+                .ok_or(PairError::SubUnderFlow6)
+        } else {
+            Ok(0)
+        };
+
+        let amount_1_in = if balance_1
+            > reserves
+                .1
+                .checked_sub(amount_1_out)
+                .ok_or(PairError::SubUnderFlow7)?
+        {
+            balance_1
+                .checked_sub(
+                    reserves
+                        .1
+                        .checked_sub(amount_1_out)
+                        .ok_or(PairError::SubUnderFlow8)?,
+                )
+                .ok_or(PairError::SubUnderFlow9)
+        } else {
+            Ok(0)
+        };
+
+        if amount_0_in == Ok(0) && amount_1_in == Ok(0) {
+            return Err(PairError::InsufficientInputAmount)
+        }
+
+        let balance_0_adjusted = balance_0
+            .checked_mul(1_000)
+            .ok_or(PairError::MulOverFlow8)?
+            .checked_sub(amount_0_in?.checked_mul(3).ok_or(PairError::MulOverFlow9)?)
+            .ok_or(PairError::SubUnderFlow10);
+
+        let balance_1_adjusted = balance_1
+            .checked_mul(1_000)
+            .ok_or(PairError::MulOverFlow10)?
+            .checked_sub(
+                amount_1_in?
+                    .checked_mul(3)
+                    .ok_or(PairError::MulOverFlow11)?,
+            )
+            .ok_or(PairError::SubUnderFlow11)?;
+
+        if balance_0_adjusted?
+            .checked_mul(balance_1_adjusted)
+            .ok_or(PairError::MulOverFlow16)?
+            < reserves
+                .0
+                .checked_mul(reserves.1)
+                .ok_or(PairError::MulOverFlow17)?
+                .checked_mul(1_000u128.pow(2))
+                .ok_or(PairError::MulOverFlow18)?
+        {
+            return Err(PairError::K)
+        }
+
+        self::_update(balance_0, balance_1, reserves.0, reserves.1);
+
+        self._emit_swap_event(
+            Self::env().caller(),
+            amount_0_in,
+            amount_1_in,
+            amount_0_out,
+            amount_1_out,
+            to,
+        );
+
+        Ok(())
     }
 }
 
