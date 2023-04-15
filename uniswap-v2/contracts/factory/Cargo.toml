@@ -12,6 +12,7 @@ scale-info = { version = "2.3", default-features = false, features = ["derive"],
 
 openbrush = { git = "https://github.com/727-Ventures/openbrush-contracts", version = "3.0.0", default-features = false }
 uniswap_v2 = { path = "../../logics", default-features = false }
+pair_contract = {path="../pair", default-features = false, features=["ink-as-dependency"]}
 
 [dev-dependencies]
 ink_e2e = "4.0.1"
@@ -27,7 +28,8 @@ std = [
     "scale/std",
     "scale-info/std",
     "openbrush/std",
-    "uniswap_v2/std"
+    "uniswap_v2/std",
+    "pair_contract/std"
 ]
 ink-as-dependency = []
 e2e-tests = []

@@ -19,7 +19,8 @@ uniswap_v2 = {path="../../logics", default-features = false}
 name = "pair_contract"
 path = "lib.rs"
 crate-type=[
-    "cdylib"
+    "cdylib",
+    "rlib"
 ]
 
 [features]

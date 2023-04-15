@@ -1,5 +1,7 @@
 use openbrush::traits::AccountId;
 
+use super::pair::PairError;
+
 #[openbrush::wrapper]
 pub type FactoryRef = dyn Factory;
 
@@ -21,6 +23,13 @@ pub trait Factory {
     fn fee_to_setter(&self) -> AccountId;
 
     #[ink(message)]
+    fn create_pair(
+        &mut self,
+        token_a: AccountId,
+        token_b: AccountId,
+    ) -> Result<AccountId, FactoryError>;
+
+    #[ink(message)]
     fn get_pair(&self, token_a: AccountId, token_b: AccountId) -> Option<AccountId>;
 
     fn _emit_create_pair_event(
@@ -30,10 +39,23 @@ pub trait Factory {
         _apair: AccountId,
         _apair_len: u64,
     );
+
+    fn _instantiate_pair(&mut self, salt_bytes: &[u8]) -> Result<AccountId, FactoryError> {
+        unimplemented!()
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum FactoryError {
-    Error,
+    PairError(PairError),
+    ZeroAddress,
+    IdenticalAddress,
+    PairInstantiationFailed,
+}
+
+impl From<PairError> for FactoryError {
+    fn from(value: PairError) -> Self {
+        FactoryError::PairError(value)
+    }
 }
