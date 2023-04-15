@@ -49,6 +49,7 @@ pub trait Factory {
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum FactoryError {
     PairError(PairError),
+    CallerIsnotFeeSetter,
     ZeroAddress,
     IdenticalAddress,
     PairInstantiationFailed,
